@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
   }
 });
 
-// Only accept PDFs
+
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf') {
     cb(null, true);

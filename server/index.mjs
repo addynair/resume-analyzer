@@ -6,14 +6,13 @@ import mysql from 'mysql2';
 import fs from 'fs/promises';
 import path from 'path';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { analyzeSkillGap } from './analyzeSkills.mjs'; 
+import { analyzeSkillGap } from './analyzeSkills.mjs';
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
 
 app.use('/uploads', express.static(path.resolve('uploads')));
 
@@ -36,7 +35,6 @@ app.get('/', (req, res) => {
   res.send('Backend is live at http://localhost:5000');
 });
 
-
 async function extractTextFromPDF(pdfPath) {
   try {
     const pdfData = await fs.readFile(pdfPath);
@@ -58,33 +56,40 @@ async function extractTextFromPDF(pdfPath) {
   }
 }
 
+
 app.post('/upload', uploadHandler.single('resume'), async (req, res) => {
   try {
+    console.log('Received request:', req.body);
+    
     if (!req.file) {
+      console.error('No file uploaded');
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
     const jobRole = req.body.jobRole;
     if (!jobRole || jobRole.trim().length === 0) {
+      console.error('Job role is missing');
       return res.status(400).json({ message: 'Job role is required for skill gap analysis' });
     }
 
     const filePath = path.resolve(req.file.path);
-    console.log('Resolved absolute file path:', filePath);
+    console.log('Resolved file path:', filePath);
 
     try {
       await fs.access(filePath);
-    } catch {
+    } catch (err) {
+      console.error('File access error:', err);
       return res.status(400).json({ message: 'File does not exist at path: ' + filePath });
     }
 
     const extractedText = await extractTextFromPDF(filePath);
-
     if (!extractedText || extractedText.trim().length === 0) {
+      console.error('No text extracted from PDF');
       return res.status(400).json({ message: 'PDF contains no extractable text' });
     }
 
-   
+    console.log('Text extracted from PDF:', extractedText);
+
     const sql = `
       INSERT INTO resumes (filename, originalname, filepath, uploaded_at)
       VALUES (?, ?, ?, NOW())
@@ -93,17 +98,29 @@ app.post('/upload', uploadHandler.single('resume'), async (req, res) => {
     const values = [req.file.filename, req.file.originalname, relativeFilePath];
     const [result] = await db.promise().query(sql, values);
 
-    
-    const skillReport = await analyzeSkillGap(extractedText, jobRole);
+    console.log('Resume data inserted into database:', result);
 
-    
+    const skillReport = await analyzeSkillGap(extractedText, jobRole);
+    console.log('Skill report received:', skillReport);
+
     const matchedSkills = skillReport.matchedSkills || [];
     const missingSkills = skillReport.missingSkills || [];
-    const recommendations = skillReport.recommendations || [];
+    let recommendations = skillReport.recommendations || [];
 
-    
-    const resumeId = result.insertId; 
+if (!Array.isArray(recommendations)) {
+  if (typeof recommendations === 'object' && recommendations !== null) {
+    // Convert object to array of formatted strings
+    recommendations = Object.entries(recommendations).map(
+      ([key, value]) => `${key}: ${value}`
+    );
+  } else if (typeof recommendations === 'string') {
+    recommendations = [recommendations];
+  } else {
+    recommendations = [];
+  }
+}
 
+    const resumeId = result.insertId;
     const sqlAnalysis = `
       INSERT INTO skill_analysis (resume_id, job_role, matched_skills, missing_skills, recommendations)
       VALUES (?, ?, ?, ?, ?)
@@ -111,12 +128,13 @@ app.post('/upload', uploadHandler.single('resume'), async (req, res) => {
     const analysisValues = [
       resumeId,
       jobRole,
-      matchedSkills.join(', '),  
-      missingSkills.join(', '),  
-      recommendations.join('; ') 
+      matchedSkills.join(', '),
+      missingSkills.join(', '),
+      recommendations.join('; ')
     ];
 
     await db.promise().query(sqlAnalysis, analysisValues);
+    console.log('Skill analysis data inserted into database');
 
     res.status(200).json({
       message: 'File uploaded, analyzed, and saved successfully',
@@ -127,19 +145,14 @@ app.post('/upload', uploadHandler.single('resume'), async (req, res) => {
     });
   } catch (err) {
     console.error('Error during upload or analysis:', err);
-
-    if (req.file && req.file.path) {
-      try {
-        await fs.unlink(req.file.path);
-        console.log('Deleted uploaded file due to error:', req.file.path);
-      } catch (unlinkErr) {
-        console.error('Failed to delete uploaded file:', unlinkErr);
-      }
-    }
-
     res.status(500).json({ message: 'Internal server error', error: err.message });
   }
 });
+
+  
+
+
+    
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
