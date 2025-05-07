@@ -1,3 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 *,
 *::before,
@@ -29,7 +32,6 @@ input, button {
   outline: none;
 }
 
-/* ResumeAnalyzer Component Styles */
 .resume-analyzer-container {
   min-height: 100vh;
   background-color: white;
