@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.mjs",
+    "postinstall": "rm -rf node_modules/pdf-parse/test",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
