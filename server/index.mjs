@@ -19,6 +19,20 @@ app.get("/", (req, res) => {
   res.send("Backend is live!");
 });
 
+// --- Database Connection Test ---
+async function testDatabaseConnection() {
+  try {
+    await pool.query("SELECT 1");
+    console.log("✅ Database connected successfully!");
+  } catch (err) {
+    console.error("❌ Failed to connect to the database:", err.message);
+    process.exit(1); // Exit the process if DB connection fails
+  }
+}
+
+// Call the test before starting the server
+await testDatabaseConnection();
+
 async function extractTextFromPDF(pdfPath) {
   try {
     const pdfData = await fs.readFile(pdfPath);
