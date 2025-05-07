@@ -3,17 +3,28 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
+import { fileURLToPath } from "url";
+import pdfParse from "pdf-parse";
 import { uploadHandler } from "./upload.mjs";
 import { analyzeSkillGap } from "./analyzeSkills.mjs";
 import pool from "./db.mjs";
-import pdfParse from "pdf-parse";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const uploadsDir = path.resolve(__dirname, "uploads");
+
+if (!fsSync.existsSync(uploadsDir)) {
+  fsSync.mkdirSync(uploadsDir, { recursive: true });
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static(path.resolve("uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
 app.get("/", (req, res) => {
   res.send("Backend is live!");
@@ -71,7 +82,8 @@ app.post("/upload", uploadHandler.single("resume"), async (req, res) => {
         .json({ message: "PDF contains no extractable text" });
     }
 
-    const relativeFilePath = path.join("uploads", req.file.filename);
+    const relativeFilePath = path.relative(__dirname, filePath);
+
     const insertResumeSQL = `
       INSERT INTO resumes (filename, originalname, filepath, uploaded_at)
       VALUES (?, ?, ?, NOW())
