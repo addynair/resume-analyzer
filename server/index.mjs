@@ -5,10 +5,10 @@ import path from "path";
 import fs from "fs/promises";
 import fsSync from "fs";
 import { fileURLToPath } from "url";
-import pdfParse from "pdf-parse";
 import { uploadHandler } from "./upload.mjs";
 import { analyzeSkillGap } from "./analyzeSkills.mjs";
 import pool from "./db.mjs";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 
 dotenv.config();
 
@@ -45,8 +45,19 @@ await testDatabaseConnection();
 async function extractTextFromPDF(pdfPath) {
   try {
     const dataBuffer = await fs.readFile(pdfPath);
-    const data = await pdfParse(dataBuffer);
-    return data.text.trim();
+    const loadingTask = pdfjsLib.getDocument({ data: dataBuffer });
+    const pdf = await loadingTask.promise;
+
+    let fullText = "";
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item) => item.str).join(" ");
+      fullText += pageText + "\n";
+    }
+
+    return fullText.trim();
   } catch (err) {
     console.error("Error extracting text from PDF:", err);
     throw new Error("Failed to extract text from PDF");
